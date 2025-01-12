@@ -2,23 +2,28 @@ const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const mongoose = require("mongoose");
+const cors = require("cors");
 
 const app = express();
 const port = process.env.PORT || 5000;
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*",
+    origin: "*", // Allow all origins for Socket.IO
     methods: ["GET", "POST"],
   },
 });
 
+// Use CORS middleware for Express
+app.use(cors());
+
 // MongoDB connection
-const mongoURI = "mongodb+srv://an7539661:6scTholuzRHssQJW@guftago.bnwkn.mongodb.net/?retryWrites=true&w=majority&appName=Guftago";
-mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true });
-mongoose.connection.once("open", () => {
-  console.log("Connected to MongoDB.");
-});
+const mongoURI =
+  "mongodb+srv://an7539661:6scTholuzRHssQJW@guftago.bnwkn.mongodb.net/mydb?retryWrites=true&w=majority";
+mongoose
+  .connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("Connected to MongoDB."))
+  .catch((error) => console.error("MongoDB connection error:", error));
 
 // Message schema
 const messageSchema = new mongoose.Schema({
@@ -77,8 +82,8 @@ io.on("connection", (socket) => {
     console.log(`Socket ${socket.id} disconnected.`);
     for (const [id, sock] of Object.entries(clients)) {
       if (sock === socket) {
+        console.log(`Removing client ID: ${id}`);
         delete clients[id];
-        console.log(`User ${id} removed from active clients.`);
         break;
       }
     }
@@ -89,6 +94,8 @@ io.on("connection", (socket) => {
 app.get("/messages/:senderId/:targetId", async (req, res) => {
   const { senderId, targetId } = req.params;
 
+  console.log("Fetching messages for:", senderId, targetId);
+
   try {
     // Fetch messages from the database
     const messages = await Message.find({
@@ -98,16 +105,19 @@ app.get("/messages/:senderId/:targetId", async (req, res) => {
       ],
     }).sort({ timestamp: 1 }); // Sort by timestamp
 
+    console.log("Messages fetched:", messages);
     res.json(messages);
   } catch (error) {
     console.error("Error fetching messages:", error);
     res.status(500).json({ error: "Failed to fetch messages" });
   }
 });
-// forchecking
-app.route("/check").get((req,res)=>{
+
+// Health check API
+app.route("/check").get((req, res) => {
   return res.json("The API is working fine");
 });
+
 // Start the server
 server.listen(port, "0.0.0.0", () => {
   console.log(`Server running on port ${port}`);
