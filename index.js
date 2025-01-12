@@ -14,7 +14,7 @@ const io = socketIo(server, {
 });
 
 // MongoDB connection
-const mongoURI = "mongodb+srv://an7539661:6scTholuzRHssQJW@guftago.bnwkn.mongodb.net/mydb";
+const mongoURI = "mongodb+srv://an7539661:6scTholuzRHssQJW@guftago.bnwkn.mongodb.net/?retryWrites=true&w=majority&appName=Guftago";
 mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true });
 mongoose.connection.once("open", () => {
   console.log("Connected to MongoDB.");
@@ -39,24 +39,36 @@ io.on("connection", (socket) => {
   // User signin
   socket.on("signin", (id) => {
     console.log(`User signed in: ${id}`);
-    clients[id] = socket; // Map the user ID to the socket
+
+    // Remove any existing socket for the user
+    if (clients[id]) {
+      console.log(`User ${id} is already connected. Replacing socket.`);
+      clients[id].disconnect();
+    }
+
+    // Map the user ID to the new socket
+    clients[id] = socket;
   });
 
   // Send/receive messages
   socket.on("message", async (msg) => {
     const { senderId, targetId, message } = msg;
 
-    // Save the message to MongoDB
-    const newMessage = new Message({ senderId, targetId, message });
-    await newMessage.save();
-    console.log("Message saved to DB:", newMessage);
+    try {
+      // Save the message to MongoDB
+      const newMessage = new Message({ senderId, targetId, message });
+      await newMessage.save();
+      console.log("Message saved to DB:", newMessage);
 
-    // Emit the message to the target user if online
-    if (clients[targetId]) {
-      clients[targetId].emit("message", newMessage);
-      console.log(`Message sent to target ID: ${targetId}`);
-    } else {
-      console.log(`Target ID ${targetId} is not connected.`);
+      // Emit the message to the target user if online
+      if (clients[targetId]) {
+        clients[targetId].emit("message", newMessage);
+        console.log(`Message sent to target ID: ${targetId}`);
+      } else {
+        console.log(`Target ID ${targetId} is not connected.`);
+      }
+    } catch (error) {
+      console.error("Error saving message:", error);
     }
   });
 
