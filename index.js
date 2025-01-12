@@ -2,28 +2,23 @@ const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const mongoose = require("mongoose");
-const cors = require("cors");
 
 const app = express();
 const port = process.env.PORT || 5000;
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*", // Allow all origins for Socket.IO
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
 
-// Use CORS middleware for Express
-app.use(cors());
-
 // MongoDB connection
-const mongoURI =
-  "mongodb+srv://an7539661:6scTholuzRHssQJW@guftago.bnwkn.mongodb.net/mydb?retryWrites=true&w=majority";
-mongoose
-  .connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log("Connected to MongoDB."))
-  .catch((error) => console.error("MongoDB connection error:", error));
+const mongoURI = "mongodb+srv://an7539661:6scTholuzRHssQJW@guftago.bnwkn.mongodb.net/?retryWrites=true&w=majority&appName=Guftago";
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connection.once("open", () => {
+  console.log("Connected to MongoDB.");
+});
 
 // Message schema
 const messageSchema = new mongoose.Schema({
@@ -45,14 +40,22 @@ io.on("connection", (socket) => {
   socket.on("signin", (id) => {
     console.log(`User signed in: ${id}`);
 
-    // Remove any existing socket for the user
+    // Disconnect previous socket for the same user ID
     if (clients[id]) {
-      console.log(`User ${id} is already connected. Replacing socket.`);
+      console.log(`User ${id} is already connected. Disconnecting old socket.`);
       clients[id].disconnect();
     }
 
-    // Map the user ID to the new socket
+    // Map the new user ID to the socket
     clients[id] = socket;
+
+    socket.on("disconnect", () => {
+      console.log(`Socket ${socket.id} disconnected.`);
+      if (clients[id] === socket) {
+        delete clients[id];
+        console.log(`User ${id} removed from active clients.`);
+      }
+    });
   });
 
   // Send/receive messages
@@ -76,36 +79,20 @@ io.on("connection", (socket) => {
       console.error("Error saving message:", error);
     }
   });
-
-  // User disconnect
-  socket.on("disconnect", () => {
-    console.log(`Socket ${socket.id} disconnected.`);
-    for (const [id, sock] of Object.entries(clients)) {
-      if (sock === socket) {
-        console.log(`Removing client ID: ${id}`);
-        delete clients[id];
-        break;
-      }
-    }
-  });
 });
 
 // API to fetch chat history between two users
 app.get("/messages/:senderId/:targetId", async (req, res) => {
   const { senderId, targetId } = req.params;
 
-  console.log("Fetching messages for:", senderId, targetId);
-
   try {
-    // Fetch messages from the database
     const messages = await Message.find({
       $or: [
         { senderId, targetId },
         { senderId: targetId, targetId: senderId },
       ],
-    }).sort({ timestamp: 1 }); // Sort by timestamp
+    }).sort({ timestamp: 1 });
 
-    console.log("Messages fetched:", messages);
     res.json(messages);
   } catch (error) {
     console.error("Error fetching messages:", error);
@@ -113,7 +100,7 @@ app.get("/messages/:senderId/:targetId", async (req, res) => {
   }
 });
 
-// Health check API
+// For testing API
 app.route("/check").get((req, res) => {
   return res.json("The API is working fine");
 });
