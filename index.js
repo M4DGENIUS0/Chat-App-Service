@@ -14,7 +14,7 @@ const io = socketIo(server, {
 });
 
 // MongoDB connection
-const mongoURI = "mongodb+srv://an7539661:<db_password>@chatappcluster.cllp6.mongodb.net/?retryWrites=true&w=majority&appName=chatAppCluster";
+const mongoURI = "mongodb+srv://an7539661:6scTholuzRHssQJW@guftago.bnwkn.mongodb.net/mydb";
 mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true });
 mongoose.connection.once("open", () => {
   console.log("Connected to MongoDB.");
